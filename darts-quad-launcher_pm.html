@@ -1,0 +1,351 @@
+<!DOCTYPE html>
+<html lang="et">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Darts – automaatne paigutus (1–8, share + clear, mobile 2×2 fix)</title>
+<style>
+  :root{ --bar-h:56px; }
+  html,body{ height:100%; margin:0; background:#000; color:#ddd; font:12px system-ui,Segoe UI,Arial,sans-serif; }
+
+  .panel{
+    display:flex; align-items:center; gap:.4rem;
+    padding:.4rem .5rem; border-bottom:1px solid #222;
+    background:#0a0a0a; white-space:nowrap; overflow-x:auto;
+    transition: opacity .35s ease; opacity:1;
+  }
+  .panel.faded{ opacity:.16; }
+  .panel:hover, .panel:focus-within{ opacity:1; }
+  .panel.hidden{ display:none; }
+
+  .panel label{ opacity:.9; margin:0 .1rem 0 .2rem; }
+  .panel input{ width:3.2rem; padding:.2rem .3rem; border:1px solid #444; border-radius:.3rem; background:#111; color:#ddd; font-size:11px; }
+  .panel input.event{ width:13rem; }
+  .panel button{
+    padding:.28rem .55rem; border:1px solid #1e88ff; background:#1e88ff; color:#fff;
+    border-radius:.35rem; font-weight:600; cursor:pointer
+  }
+  .panel button.ghost{ background:#111; border-color:#444; color:#ddd; font-weight:500 }
+  .panel button.warn{ background:#444; border-color:#666; }
+  .panel button:active{ transform:translateY(1px) }
+
+  .wrap{ height:calc(100vh - var(--bar-h)); }
+  .grid{ display:grid; gap:0; height:100%; width:100%; }
+  .cell{ position:relative; overflow:hidden; background:#000; box-shadow:inset 0 0 0 1px #111; cursor:grab }
+  .cell:active{ cursor:grabbing }
+  .cell .badge{
+    position:absolute; right:.4rem; top:.35rem; z-index:3; color:#bbb;
+    background:rgba(0,0,0,.55); padding:.15rem .35rem; border-radius:.35rem; font-size:11px
+  }
+  iframe{
+    position:absolute; top:0; left:0; width:100vw; height:100vh; border:0;
+    transform-origin:top left; pointer-events:none;
+  }
+
+  .hint{
+    position:fixed; right:.5rem; bottom:.5rem; color:#aaa; font-size:11px;
+    background:rgba(0,0,0,.55); padding:.3rem .5rem; border-radius:.35rem; user-select:none
+  }
+  .toast{
+    position:fixed; left:50%; bottom:1.2rem; transform:translateX(-50%);
+    background:rgba(20,20,20,.9); color:#eee; border:1px solid #333; border-radius:.5rem;
+    padding:.45rem .7rem; font:12px system-ui; opacity:0; pointer-events:none; transition:opacity .25s ease;
+  }
+  .toast.show{ opacity:1; }
+</style>
+</head>
+<body>
+  <div class="panel" id="panel">
+    <label>Event</label><input id="event" class="event" placeholder="ixeestimeestriv25" />
+    <label>B1</label><input id="b1" maxlength="4" placeholder="####" />
+    <label>B2</label><input id="b2" maxlength="4" placeholder="####" />
+    <label>B3</label><input id="b3" maxlength="4" placeholder="####" />
+    <label>B4</label><input id="b4" maxlength="4" placeholder="####" />
+    <label>B5</label><input id="b5" maxlength="4" placeholder="####" />
+    <label>B6</label><input id="b6" maxlength="4" placeholder="####" />
+    <label>B7</label><input id="b7" maxlength="4" placeholder="####" />
+    <label>B8</label><input id="b8" maxlength="4" placeholder="####" />
+    <button id="apply">Apply</button>
+    <button id="fitAll" class="ghost" title="Paiguta kõik uuesti Fit’i">Fit All</button>
+    <button id="share" class="ghost" title="Genereeri jagamislink (kopeeritakse lõikelauale)">Share link</button>
+    <button id="clear" class="warn" title="Tühjenda kõik lauad (ei taasta vanu väärtusi)">Clear boards</button>
+  </div>
+
+  <div class="wrap"><div id="grid" class="grid"></div></div>
+  <div class="hint">Lohista | Zoom: hiireratas | Topeltklõps ruudul: Fit | F: täisekraan | H: peida/näita riba</div>
+  <div class="toast" id="toast">Link kopeeritud!</div>
+
+<script>
+(function(){
+  var grid = document.getElementById('grid');
+  var panel = document.getElementById('panel');
+  var toast = document.getElementById('toast');
+  function $(id){ return document.getElementById(id); }
+
+  // Paneeli tegelik väliskõrgus -> CSS muutuja
+  function setBarHeight(){
+    var h = Math.ceil(panel.offsetHeight || 0);
+    document.documentElement.style.setProperty('--bar-h', h + 'px');
+  }
+  setBarHeight();
+  window.addEventListener('resize', setBarHeight);
+
+  // LocalStorage
+  var LS = 'dartsBoardsOnly';
+  function loadP(){ try{ return JSON.parse(localStorage.getItem(LS)||'{}'); }catch(e){ return {}; } }
+  function saveP(p){ localStorage.setItem(LS, JSON.stringify(p)); }
+
+  var defaults = { event:'ixeestimeestriv25', boards:['8714','4794','3088','3307'] };
+
+  // URL params -> ?event=...&boards=AAA,BBB
+  function readUrlParams(){
+    var sp = new URLSearchParams(location.search);
+    var ev = (sp.get('event') || '').trim();
+    var boards = [];
+    if (sp.get('boards')) {
+      boards = sp.get('boards').split(',').map(function(x){ return x.replace(/[^A-Za-z0-9]/g,'').slice(0,4); }).filter(Boolean);
+    }
+    return { event: ev, boards: boards };
+  }
+  function makeShareURL(eventSlug, boards){
+    var u = new URL(location.href);
+    u.searchParams.set('event', eventSlug);
+    if (boards.length) u.searchParams.set('boards', boards.join(','));
+    else u.searchParams.delete('boards');
+    return u.toString();
+  }
+  function copy(text){
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(showToast, function(){ fallbackCopy(text); });
+    } else { fallbackCopy(text); }
+  }
+  function fallbackCopy(text){
+    var t = document.createElement('textarea');
+    t.value = text; document.body.appendChild(t); t.select();
+    try{ document.execCommand('copy'); }catch(e){}
+    document.body.removeChild(t); showToast();
+  }
+  function showToast(msg){
+    toast.textContent = msg || 'Link kopeeritud!';
+    toast.classList.add('show');
+    setTimeout(function(){ toast.classList.remove('show'); }, 1300);
+  }
+
+  // Lae seis (URL > localStorage > defaults)
+  var urlP = readUrlParams();
+  var saved = loadP();
+  var state = {
+    event: (urlP.event || saved.event || defaults.event),
+    boards: (urlP.boards && urlP.boards.length ? urlP.boards : (Array.isArray(saved.boards)&&saved.boards.length ? saved.boards : defaults.boards))
+  };
+  if (urlP.event || (urlP.boards && urlP.boards.length)) {
+    saveP({ event: state.event, boards: state.boards });
+  }
+
+  // Täida väljad
+  $('event').value = state.event;
+  var idList = ['b1','b2','b3','b4','b5','b6','b7','b8'];
+  for(var i=0;i<idList.length;i++){ $(idList[i]).value = state.boards[i] || ''; }
+
+  // Alfa-numbriline, max 4, dedupe
+  function parseBoards(){
+    var list = [], seen = {};
+    for(var i=0;i<idList.length;i++){
+      var raw = (document.getElementById(idList[i]).value || '');
+      var v = raw.replace(/[^A-Za-z0-9]/g,'').slice(0,4);
+      if(v && !seen[v]){ seen[v]=1; list.push(v); if(list.length===8) break; }
+    }
+    return list;
+  }
+
+  // ——— UUS valiku loogika: eelistab ruudukujulist (cols≈rows) ja n==4 -> 2×2 ———
+  function pickGrid(n){
+    var W = window.innerWidth;
+    var H = window.innerHeight - (panel.offsetHeight || 0);
+    if (W < 1 || H < 1) return {cols:1, rows:1};
+
+    // erijuht: 4 → 2×2 (mobiilis hoiab kindlasti 2×2)
+    if (n === 4) return { cols:2, rows:2 };
+
+    var Aw = 16, Ah = 9;
+    var best = null;
+
+    for(var rows=1; rows<=n; rows++){
+      var cols = Math.ceil(n/rows);
+      var cw = W/cols, ch = H/rows;
+      var s = Math.min(cw/Aw, ch/Ah);
+      var waste = Math.abs((cw/ch) - (Aw/Ah));
+      var squareBias = Math.abs(cols - rows); // väiksem parem
+      var emptySlots = (cols*rows) - n;       // vähem parem
+
+      var cand = { cols:cols, rows:rows, s:s, waste:waste, squareBias:squareBias, empty:emptySlots };
+      if (!best) { best = cand; continue; }
+
+      // 1) suurem s parem
+      if (cand.s > best.s + 1e-9) { best = cand; continue; }
+      if (Math.abs(cand.s - best.s) <= 1e-9) {
+        // 2) ruudukam parem (väiksem |cols-rows|)
+        if (cand.squareBias < best.squareBias) { best = cand; continue; }
+        if (cand.squareBias === best.squareBias) {
+          // 3) vähem tühje kohti
+          if (cand.empty < best.empty) { best = cand; continue; }
+          if (cand.empty === best.empty) {
+            // 4) AR-lähedus (väiksem waste)
+            if (cand.waste < best.waste) { best = cand; continue; }
+          }
+        }
+      }
+    }
+    return { cols:best.cols, rows:best.rows };
+  }
+
+  function setGrid(cols, rows){
+    grid.style.gridTemplateColumns = 'repeat(' + cols + ', 1fr)';
+    grid.style.gridTemplateRows    = 'repeat(' + rows + ', 1fr)';
+  }
+
+  function build(eventSlug, boards, opts){
+    opts = opts || {};
+    grid.innerHTML = '';
+
+    if (!boards.length && opts.useDefaults !== false) {
+      boards = defaults.boards.slice();
+    }
+
+    var n = boards.length;
+    if (n === 0) { setGrid(1,1); return; }
+
+    var g = pickGrid(n);
+    setGrid(g.cols, g.rows);
+
+    for(var i=0;i<boards.length;i++){
+      (function(num){
+        var cell = document.createElement('div');
+        cell.className = 'cell';
+        cell.innerHTML = '<span class="badge">'+ num +'</span><iframe sandbox="allow-scripts allow-same-origin allow-forms" referrerpolicy="no-referrer"></iframe>';
+        grid.appendChild(cell);
+
+        var iframe = cell.querySelector('iframe');
+        iframe.src = 'https://tv.dartconnect.com/live/' + num + '/M/' + eventSlug;
+
+        var st = cell._st = { x:0, y:0, s:1, mode:'fit' };
+        function apply(){
+          iframe.style.transform = 'translate(' + st.x + 'px,' + st.y + 'px) scale(' + st.s + ')';
+        }
+        function fit(){
+          var r = cell.getBoundingClientRect();
+          var VW = window.innerWidth, VH = window.innerHeight;
+          st.s = Math.min(r.width / VW, r.height / VH);
+          st.x = 0; st.y = 0; st.mode = 'fit'; apply();
+        }
+        cell._fit = fit; fit();
+
+        var drag=false,sx=0,sy=0,ox=0,oy=0;
+        cell.addEventListener('pointerdown',function(e){ drag=true;sx=e.clientX;sy=e.clientY;ox=st.x;oy=st.y;cell.setPointerCapture(e.pointerId); });
+        cell.addEventListener('pointermove',function(e){ if(!drag)return; st.x=ox+(e.clientX-sx); st.y=oy+(e.clientY-sy); st.mode='free'; apply(); });
+        function stop(){ drag=false; }
+        cell.addEventListener('pointerup',stop); cell.addEventListener('pointercancel',stop);
+
+        cell.addEventListener('wheel',function(e){
+          e.preventDefault();
+          var k = Math.exp(-e.deltaY * 0.0015);
+          var r = cell.getBoundingClientRect();
+          var cx = e.clientX - r.left, cy = e.clientY - r.top;
+          var px = (cx - st.x)/st.s, py = (cy - st.y)/st.s;
+          var ns = st.s * k; if(ns<0.4) ns=0.4; if(ns>4) ns=4;
+          st.s = ns; st.x = cx - px*st.s; st.y = cy - py*st.s; st.mode='free'; apply();
+        }, {passive:false});
+
+        cell.addEventListener('dblclick', fit);
+      })(boards[i]);
+    }
+
+    window.onresize = function(){
+      setBarHeight();
+      var cells = document.querySelectorAll('.cell'), free=0;
+      for(var k=0;k<cells.length;k++){ if(cells[k]._st && cells[k]._st.mode!=='fit') free++; }
+      var mostFit = cells.length ? (free/cells.length <= 0.5) : true;
+      if(mostFit){
+        var g2 = pickGrid(n);
+        setGrid(g2.cols, g2.rows);
+        for(var j=0;j<cells.length;j++){ if(cells[j]._fit) cells[j]._fit(); }
+      }
+    };
+  }
+
+  // Esmane ehitus
+  build(($('event').value||'').trim() || defaults.event, parseBoards(), {useDefaults:true});
+
+  // Nupud
+  $('apply').addEventListener('click', function(){
+    var eventSlug = ($('event').value||'').trim() || defaults.event;
+    var boards = parseBoards();
+    saveP({ event:eventSlug, boards:boards });
+    build(eventSlug, boards, {useDefaults:false});
+  });
+
+  $('fitAll').addEventListener('click', function(){
+    var cells = document.querySelectorAll('.cell');
+    for(var i=0;i<cells.length;i++){ if(cells[i]._fit) cells[i]._fit(); }
+  });
+
+  $('share').addEventListener('click', function(){
+    var eventSlug = ($('event').value||'').trim() || defaults.event;
+    var boards = parseBoards();
+    var link = makeShareURL(eventSlug, boards);
+    copy(link);
+  });
+
+  // CLEAR BOARDS
+  $('clear').addEventListener('click', function(){
+    var ev = ($('event').value||'').trim() || defaults.event;
+    for(var i=0;i<idList.length;i++){ $(idList[i]).value = ''; }
+    saveP({ event: ev, boards: [] });
+    build(ev, [], {useDefaults:false});
+    var u = new URL(location.href);
+    u.searchParams.delete('boards');
+    history.replaceState(null, '', u.toString());
+  });
+
+  // Enter -> Apply
+  var inputs = document.querySelectorAll('.panel input');
+  for(var i=0;i<inputs.length;i++){
+    inputs[i].addEventListener('keydown', function(e){ if(e.key==='Enter') $('apply').click(); });
+  }
+
+  // Täisekraan: F
+  document.addEventListener('keydown', function(e){
+    if((e.key||'').toLowerCase()==='f'){
+      var el=document.documentElement;
+      if(!document.fullscreenElement){ (el.requestFullscreen || el.webkitRequestFullscreen || el.msRequestFullscreen || function(){}) .call(el); }
+      else{ if(document.exitFullscreen) document.exitFullscreen(); }
+    }
+  });
+
+  // Fade pärast tegevusetust
+  var FADE_DELAY = 4000, fadeTimer = null;
+  function armFade(){
+    clearTimeout(fadeTimer);
+    panel.classList.remove('faded');
+    fadeTimer = setTimeout(function(){ panel.classList.add('faded'); }, FADE_DELAY);
+  }
+  ['mousemove','mousedown','keydown','touchstart','wheel','focusin'].forEach(function(ev){
+    document.addEventListener(ev, armFade, {passive:true});
+  });
+  panel.addEventListener('mouseenter', function(){ panel.classList.remove('faded'); });
+  armFade();
+
+  // H – riba peida/näita
+  document.addEventListener('keydown', function(e){
+    if((e.key||'').toLowerCase()==='h'){
+      panel.classList.toggle('hidden');
+      setBarHeight();
+      if(!panel.classList.contains('hidden')) armFade();
+      else clearTimeout(fadeTimer);
+    }
+  });
+
+})();
+</script>
+</body>
+</html>
