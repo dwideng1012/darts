@@ -57,14 +57,14 @@
 <body>
   <div class="panel" id="panel">
     <label>Event</label><input id="event" class="event" placeholder="ixeestimeestriv25" />
-    <label>B1</label><input id="b1" maxlength="4" placeholder="####" />
-    <label>B2</label><input id="b2" maxlength="4" placeholder="####" />
-    <label>B3</label><input id="b3" maxlength="4" placeholder="####" />
-    <label>B4</label><input id="b4" maxlength="4" placeholder="####" />
-    <label>B5</label><input id="b5" maxlength="4" placeholder="####" />
-    <label>B6</label><input id="b6" maxlength="4" placeholder="####" />
-    <label>B7</label><input id="b7" maxlength="4" placeholder="####" />
-    <label>B8</label><input id="b8" maxlength="4" placeholder="####" />
+    <label>B1</label><input id="b1" placeholder="ID" />
+    <label>B2</label><input id="b2" placeholder="ID" />
+    <label>B3</label><input id="b3" placeholder="ID" />
+    <label>B4</label><input id="b4" placeholder="ID" />
+    <label>B5</label><input id="b5" placeholder="ID" />
+    <label>B6</label><input id="b6" placeholder="ID" />
+    <label>B7</label><input id="b7" placeholder="ID" />
+    <label>B8</label><input id="b8" placeholder="ID" />
     <button id="apply">Apply</button>
     <button id="fitAll" class="ghost" title="Paiguta kõik uuesti Fit’i">Fit All</button>
     <button id="share" class="ghost" title="Genereeri jagamislink (kopeeritakse lõikelauale)">Share link</button>
@@ -97,13 +97,16 @@
 
   var defaults = { event:'ixeestimeestriv25', boards:['8714','4794','3088','3307'] };
 
-  // URL params -> ?event=...&boards=AAA,BBB
+  // URL params -> ?event=...&boards=AAA,BBB  (alfa-numbriline; pikkust ei piirata)
   function readUrlParams(){
     var sp = new URLSearchParams(location.search);
     var ev = (sp.get('event') || '').trim();
     var boards = [];
     if (sp.get('boards')) {
-      boards = sp.get('boards').split(',').map(function(x){ return x.replace(/[^A-Za-z0-9]/g,'').slice(0,4); }).filter(Boolean);
+      boards = sp.get('boards')
+        .split(',')
+        .map(function(x){ return x.replace(/[^A-Za-z0-9]/g,''); })
+        .filter(Boolean);
     }
     return { event: ev, boards: boards };
   }
@@ -147,50 +150,40 @@
   var idList = ['b1','b2','b3','b4','b5','b6','b7','b8'];
   for(var i=0;i<idList.length;i++){ $(idList[i]).value = state.boards[i] || ''; }
 
-  // Alfa-numbriline, max 4, dedupe
+  // Alfa-numbriline, dedupe; pikkust ei piirata
   function parseBoards(){
     var list = [], seen = {};
     for(var i=0;i<idList.length;i++){
       var raw = (document.getElementById(idList[i]).value || '');
-      var v = raw.replace(/[^A-Za-z0-9]/g,'').slice(0,4);
+      var v = raw.replace(/[^A-Za-z0-9]/g,'');
       if(v && !seen[v]){ seen[v]=1; list.push(v); if(list.length===8) break; }
     }
     return list;
   }
 
-  // ——— UUS valiku loogika: eelistab ruudukujulist (cols≈rows) ja n==4 -> 2×2 ———
+  // ——— Valiku loogika: eelistab ruudukujulist; n==4 -> 2×2 ———
   function pickGrid(n){
     var W = window.innerWidth;
     var H = window.innerHeight - (panel.offsetHeight || 0);
     if (W < 1 || H < 1) return {cols:1, rows:1};
-
-    // erijuht: 4 → 2×2 (mobiilis hoiab kindlasti 2×2)
     if (n === 4) return { cols:2, rows:2 };
 
-    var Aw = 16, Ah = 9;
-    var best = null;
-
+    var Aw = 16, Ah = 9, best=null;
     for(var rows=1; rows<=n; rows++){
       var cols = Math.ceil(n/rows);
       var cw = W/cols, ch = H/rows;
       var s = Math.min(cw/Aw, ch/Ah);
       var waste = Math.abs((cw/ch) - (Aw/Ah));
-      var squareBias = Math.abs(cols - rows); // väiksem parem
-      var emptySlots = (cols*rows) - n;       // vähem parem
-
+      var squareBias = Math.abs(cols - rows);
+      var emptySlots = (cols*rows) - n;
       var cand = { cols:cols, rows:rows, s:s, waste:waste, squareBias:squareBias, empty:emptySlots };
       if (!best) { best = cand; continue; }
-
-      // 1) suurem s parem
       if (cand.s > best.s + 1e-9) { best = cand; continue; }
       if (Math.abs(cand.s - best.s) <= 1e-9) {
-        // 2) ruudukam parem (väiksem |cols-rows|)
         if (cand.squareBias < best.squareBias) { best = cand; continue; }
         if (cand.squareBias === best.squareBias) {
-          // 3) vähem tühje kohti
           if (cand.empty < best.empty) { best = cand; continue; }
           if (cand.empty === best.empty) {
-            // 4) AR-lähedus (väiksem waste)
             if (cand.waste < best.waste) { best = cand; continue; }
           }
         }
