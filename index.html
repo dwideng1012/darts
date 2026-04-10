@@ -798,9 +798,20 @@ async function fetchDartsEE() {
 
     LS.setR(merged);
 
+    // Normalize session keys: old entries may have "?" where we now store "š".
+    // Rename any such keys before the purge so they match the current names.
+    const sess = LS.getS();
+    function normalizeKeys(obj) {
+      Object.keys(obj).forEach(k => {
+        const normalized = k.replace(/\?/g, 'š');
+        if (normalized !== k) { obj[normalized] = obj[k]; delete obj[k]; }
+      });
+    }
+    normalizeKeys(sess.osalejad);
+    normalizeKeys(sess.maksnud);
+
     // Purge session entries for players no longer in the ratings list.
     const validNames = new Set(merged.map(p => p.Nimi));
-    const sess = LS.getS();
     Object.keys(sess.osalejad).forEach(n => { if (!validNames.has(n)) delete sess.osalejad[n]; });
     Object.keys(sess.maksnud).forEach(n  => { if (!validNames.has(n)) delete sess.maksnud[n]; });
     LS.setS(sess);
