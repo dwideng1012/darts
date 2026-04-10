@@ -516,17 +516,21 @@ function snakeDraft(players, G) {
 
 // ── UI STATE ───────────────────────────────────────────────────
 let showOnlyPaid = false;
-let usdEurRate   = 0.90; // fallback; updated on init from frankfurter.app
+let usdEurRate = null; // null until fetched; "Kurss kättesaamatu" shown if fetch fails
 
 async function fetchUsdRate() {
   try {
-    const res  = await fetch('https://api.frankfurter.app/latest?from=USD&to=EUR');
+    const res  = await fetch('https://api.frankfurter.dev/v1/latest?from=USD&to=EUR');
+    if (!res.ok) throw new Error('HTTP ' + res.status);
     const data = await res.json();
     if (data && data.rates && data.rates.EUR) {
       usdEurRate = data.rates.EUR;
       renderRaha();
     }
-  } catch (_) { /* keep fallback */ }
+  } catch (_) {
+    usdEurRate = null;
+    renderRaha();
+  }
 }
 
 // ── RENDER: REITING ────────────────────────────────────────────
@@ -690,12 +694,13 @@ function renderRaha() {
 
   const paidCount  = chips.length;
   const auhinnaks  = 0.6 * totOsalus;
-  const digital    = paidCount * usdEurRate;
+  const rateKnown  = usdEurRate !== null;
+  const digital    = rateKnown ? paidCount * usdEurRate : 0;
   const klubiKassa = totOsalus - auhinnaks - digital;
   document.getElementById('dAuhinnaks').textContent  = fmtEur(auhinnaks);
-  document.getElementById('dDigital').textContent    = fmtEur(digital);
+  document.getElementById('dDigital').textContent    = rateKnown ? fmtEur(digital) : 'Kurss kättesaamatu';
   document.getElementById('dDigitalFormula').textContent =
-    paidCount > 0
+    rateKnown && paidCount > 0
       ? `${paidCount} mängijat × 1 USD × ${usdEurRate.toFixed(2)} = ${fmtEur(digital)}`
       : '';
   document.getElementById('dJackpot').textContent    = fmtEur(klubiKassa);
@@ -745,6 +750,8 @@ async function fetchDartsEE() {
     if (!res.ok) throw new Error('HTTP ' + res.status);
     const text = await res.text();
     console.log('first 500 chars:', text.slice(0, 500));
+    const idx = text.indexOf('Kolõt');
+    if (idx !== -1) console.log('Kolõt found at:', idx, '| chars around it:', text.slice(idx - 2, idx + 10));
     const data = JSON.parse(text);
     if (!data || !Array.isArray(data.data)) throw new Error('Ootamatu vastuse formaat');
     return data;
