@@ -666,10 +666,10 @@ function renderRaha() {
   let wOsalus = 0, wJP = 0, wPox = 0;
   const chips = [];
 
+  // Money depends only on Maksis (7/8/9/10). Osaleja is irrelevant here.
   Object.entries(sess.maksnud).forEach(([name, mark]) => {
-    if (!sess.osalejad[name]) return;
     const m = MARKS[mark];
-    if (!m) return;
+    if (!m) return; // skip "—" or any stale/invalid value
     wOsalus += m.osalus;
     wJP     += m.jackpot;
     wPox    += m.pox;
