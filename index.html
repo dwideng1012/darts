@@ -373,6 +373,22 @@
           <label>Pox eelmiselt korral (€)</label>
           <input type="number" id="poxPrev" min="0" step="1">
         </div>
+        <div class="co-item">
+          <label>Auhinnafond</label>
+          <select id="auhPctSel">
+            <option value="0">0%</option>
+            <option value="10">10%</option>
+            <option value="20">20%</option>
+            <option value="30">30%</option>
+            <option value="40">40%</option>
+            <option value="50">50%</option>
+            <option value="60">60%</option>
+            <option value="70">70%</option>
+            <option value="80">80%</option>
+            <option value="90">90%</option>
+            <option value="100">100%</option>
+          </select>
+        </div>
       </div>
     </div>
 
@@ -461,6 +477,8 @@ const LS = {
   setPox: (v) => localStorage.setItem('darts_pox_prev', String(v)),
   getJP: ()   => parseFloat(localStorage.getItem('darts_jackpot_prev') || '0'),
   setJP: (v)  => localStorage.setItem('darts_jackpot_prev', String(v)),
+  getAuhPct: () => parseInt(localStorage.getItem('darts_auhinnafond_protsent') || '60', 10),
+  setAuhPct: (v) => localStorage.setItem('darts_auhinnafond_protsent', String(v)),
 };
 
 // ── HELPERS ────────────────────────────────────────────────────
@@ -717,7 +735,7 @@ function renderRaha() {
   document.getElementById('mTotalKokku').textContent  = fmtEur(totOsalus + totJP + totPox);
 
   const paidCount  = chips.length;
-  const auhinnaks  = 0.6 * totOsalus;
+  const auhinnaks  = (LS.getAuhPct() / 100) * totOsalus;
   const rateKnown  = usdEurRate !== null;
   const digital    = rateKnown ? paidCount * usdEurRate : 0;
   const klubiKassa = totOsalus - auhinnaks - digital;
@@ -884,6 +902,7 @@ function init() {
   // carryover inputs: pre-fill from storage
   document.getElementById('jackpotPrev').value = LS.getJP();
   document.getElementById('poxPrev').value     = LS.getPox();
+  document.getElementById('auhPctSel').value   = LS.getAuhPct();
 
   // tab switching
   document.querySelectorAll('.tab').forEach(tab => {
@@ -927,6 +946,10 @@ function init() {
   });
   document.getElementById('poxPrev').addEventListener('input', e => {
     LS.setPox(parseFloat(e.target.value) || 0);
+    renderRaha();
+  });
+  document.getElementById('auhPctSel').addEventListener('change', e => {
+    LS.setAuhPct(parseInt(e.target.value, 10));
     renderRaha();
   });
 
