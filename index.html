@@ -226,6 +226,13 @@
     }
     .d-label { font-size: 10px; letter-spacing: 1.5px; text-transform: uppercase; color: var(--muted); margin-bottom: 6px; }
     .d-val { font-family: 'Bebas Neue', sans-serif; font-size: 2rem; color: var(--accent); line-height: 1; }
+    /* ── PRIZE TABLE ── */
+    .prize-table { width: 100%; border-collapse: collapse; margin-top: 0; }
+    .prize-table td { padding: 9px 14px; border-bottom: 1px solid var(--border); font-size: 15px; }
+    .prize-table tr:last-child td { border-bottom: none; }
+    .prize-table .p-medal { font-size: 1.3rem; width: 36px; }
+    .prize-table .p-place { color: var(--muted); width: 80px; }
+    .prize-table .p-amt   { font-family: 'Bebas Neue', sans-serif; font-size: 1.4rem; color: var(--accent); text-align: right; }
     /* ── PAID LIST ── */
     .paid-grid { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 18px; }
     .paid-chip {
@@ -409,6 +416,8 @@
           <div class="d-val" id="dJackpot">0€</div>
         </div>
       </div>
+
+      <div id="prizeTable" style="margin-top:18px"></div>
 
       <div id="paidChips" class="paid-grid"></div>
     </div>
@@ -650,9 +659,29 @@ function renderRaha() {
   document.getElementById('mTotalJackpot').textContent= fmtEur(totJP);
   document.getElementById('mTotalPox').textContent    = fmtEur(totPox);
 
-  document.getElementById('dAuhinnaks').textContent  = fmtEur(0.6 * totOsalus);
+  const auhinnaks = 0.6 * totOsalus;
+  document.getElementById('dAuhinnaks').textContent  = fmtEur(auhinnaks);
   document.getElementById('dDigital').textContent    = fmtEur(0.8 * totPox);
   document.getElementById('dJackpot').textContent    = fmtEur(totJP);
+
+  // Prize table: 50% / 30% / 20% of auhinnaks, rounded to whole euros
+  const prizes = [
+    { medal: '🥇', place: '1. koht', pct: 0.50 },
+    { medal: '🥈', place: '2. koht', pct: 0.30 },
+    { medal: '🥉', place: '3. koht', pct: 0.20 },
+  ];
+  const pt = document.getElementById('prizeTable');
+  if (auhinnaks > 0) {
+    pt.innerHTML = '<table class="prize-table">' +
+      prizes.map(p => `<tr>
+        <td class="p-medal">${p.medal}</td>
+        <td class="p-place">${p.place}</td>
+        <td class="p-amt">${Math.round(p.pct * auhinnaks)}€</td>
+      </tr>`).join('') +
+      '</table>';
+  } else {
+    pt.innerHTML = '';
+  }
 
   const cp = document.getElementById('paidChips');
   if (chips.length) {
@@ -674,28 +703,32 @@ async function fetchDartsEE() {
     st.innerHTML = html;
   }
 
-  // Parse darts.ee JSON from raw text (text() preserves UTF-8; .json() can mangle Estonian chars).
-  function parseDartsText(text) {
+  // darts.ee sends Windows-1252 (not UTF-8). Decode the raw bytes correctly.
+  function parseDartsBuffer(buf) {
+    const text = new TextDecoder('windows-1252').decode(buf);
     const data = JSON.parse(text);
     if (!data || !Array.isArray(data.data)) throw new Error('Ootamatu vastuse formaat');
     return data;
   }
 
-  // Fetch URL, read as text, parse as darts.ee JSON.
+  // Fetch URL, read as ArrayBuffer, decode as windows-1252, parse as darts.ee JSON.
   async function tryFetch(url, opts = {}) {
     const res = await fetch(url, { cache: 'no-store', ...opts });
     if (!res.ok) throw new Error('HTTP ' + res.status);
-    return parseDartsText(await res.text());
+    return parseDartsBuffer(await res.arrayBuffer());
   }
 
-  // allorigins /get wraps the body in { contents: "…" } — parse the inner string separately.
+  // allorigins /get wraps the body in { contents: "…" }. The contents string is already
+  // decoded by allorigins — parse it directly as JSON text.
   async function tryAlloriginsGet(target) {
     const proxy = 'https://api.allorigins.win/get?url=' + encodeURIComponent(target);
     const res   = await fetch(proxy, { cache: 'no-store' });
     if (!res.ok) throw new Error('HTTP ' + res.status);
-    const wrapper = JSON.parse(await res.text());
+    const wrapper = JSON.parse(new TextDecoder('windows-1252').decode(await res.arrayBuffer()));
     if (!wrapper || !wrapper.contents) throw new Error('Ootamatu allorigins vastus');
-    return parseDartsText(wrapper.contents);
+    const data = JSON.parse(wrapper.contents);
+    if (!data || !Array.isArray(data.data)) throw new Error('Ootamatu vastuse formaat');
+    return data;
   }
 
   btn.disabled = true;
