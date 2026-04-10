@@ -442,6 +442,11 @@
           <div class="d-formula" id="dDigitalFormula"></div>
         </div>
         <div class="d-card">
+          <div class="d-label">EDL</div>
+          <div class="d-val" id="dEdl">0€</div>
+          <div class="d-formula" id="dEdlFormula"></div>
+        </div>
+        <div class="d-card">
           <div class="d-label">Klubi kassa</div>
           <div class="d-val" id="dJackpot">0€</div>
         </div>
@@ -738,13 +743,18 @@ function renderRaha() {
   const auhinnaks  = (LS.getAuhPct() / 100) * totOsalus;
   const rateKnown  = usdEurRate !== null;
   const digital    = rateKnown ? paidCount * usdEurRate : 0;
-  const klubiKassa = totOsalus - auhinnaks - digital;
+  const edl        = paidCount * 1.5;
+  const klubiKassa = totOsalus - auhinnaks - digital - edl;
   document.getElementById('dAuhinnaks').textContent  = fmtEur(auhinnaks);
   document.getElementById('dDigital').textContent    = rateKnown ? fmtEur(digital) : 'Kurss kättesaamatu';
   document.getElementById('dDigitalFormula').textContent =
     rateKnown && paidCount > 0
       ? `${paidCount} mängijat × 1 USD × ${usdEurRate.toFixed(2)} = ${fmtEur(digital)}`
       : '';
+  document.getElementById('dEdl').textContent        = fmtEur(edl);
+  document.getElementById('dEdlFormula').textContent = paidCount > 0
+    ? `${paidCount} mängijat × 1.50€ = ${fmtEur(edl)}`
+    : '';
   document.getElementById('dJackpot').textContent    = fmtEur(klubiKassa);
 
   // Prize table: 50% / 30% / 20% of auhinnaks, rounded to whole euros
