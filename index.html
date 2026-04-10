@@ -1,0 +1,758 @@
+<!DOCTYPE html>
+<html lang="et">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Darts Klubi</title>
+  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Barlow:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #0f1117;
+      --surface: #181d2a;
+      --surface2: #1f2538;
+      --accent: #f5a623;
+      --accent-b: #e8572a;
+      --accent-c: #00b4d8;
+      --accent-d: #2ecc71;
+      --text: #e8eaf0;
+      --muted: #7a859a;
+      --border: #272f42;
+      --ok: #2ecc71;
+      --err: #e74c3c;
+      --radius: 8px;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Barlow', sans-serif;
+      font-size: 15px;
+      min-height: 100vh;
+    }
+    /* ── HEADER ── */
+    header {
+      background: linear-gradient(135deg, #1a2035 0%, #0f1117 100%);
+      border-bottom: 2px solid var(--accent);
+      padding: 14px 24px;
+      display: flex;
+      align-items: center;
+      gap: 18px;
+    }
+    .h-text { display: flex; flex-direction: column; }
+    .h-title {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 2.4rem;
+      letter-spacing: 4px;
+      color: var(--accent);
+      line-height: 1;
+      text-shadow: 0 0 24px rgba(245,166,35,.35);
+    }
+    .h-sub { color: var(--muted); font-size: 12px; letter-spacing: 1.5px; margin-top: 2px; }
+    /* ── NAV ── */
+    nav {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      padding: 0 24px;
+      position: sticky;
+      top: 0;
+      z-index: 10;
+    }
+    .tab {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 1.05rem;
+      letter-spacing: 2.5px;
+      color: var(--muted);
+      padding: 13px 22px;
+      cursor: pointer;
+      border-bottom: 3px solid transparent;
+      transition: color .15s, border-color .15s;
+      user-select: none;
+    }
+    .tab:hover { color: var(--text); }
+    .tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+    /* ── MAIN ── */
+    main { padding: 24px; max-width: 1200px; margin: 0 auto; }
+    .section { display: none; }
+    .section.active { display: block; }
+    /* ── CARD ── */
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 20px;
+      margin-bottom: 16px;
+    }
+    .card-title {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 1.25rem;
+      letter-spacing: 2.5px;
+      color: var(--accent);
+      margin-bottom: 16px;
+    }
+    /* ── BUTTONS ── */
+    .btn {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: .95rem;
+      letter-spacing: 1.5px;
+      padding: 8px 18px;
+      border: none;
+      border-radius: var(--radius);
+      cursor: pointer;
+      transition: background .15s, opacity .15s;
+      white-space: nowrap;
+    }
+    .btn-primary { background: var(--accent); color: #000; }
+    .btn-primary:hover { background: #f0b84a; }
+    .btn-primary:disabled { opacity: .45; cursor: not-allowed; }
+    .btn-sec {
+      background: var(--surface2);
+      color: var(--text);
+      border: 1px solid var(--border);
+    }
+    .btn-sec:hover { border-color: var(--accent); color: var(--accent); }
+    /* ── INPUTS ── */
+    input[type="text"], input[type="number"] {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      color: var(--text);
+      padding: 8px 12px;
+      font-family: 'Barlow', sans-serif;
+      font-size: 14px;
+      outline: none;
+      transition: border-color .15s;
+    }
+    input[type="text"]:focus, input[type="number"]:focus { border-color: var(--accent); }
+    input[type="checkbox"] { accent-color: var(--accent); width: 16px; height: 16px; cursor: pointer; }
+    select {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 5px;
+      color: var(--text);
+      padding: 4px 8px;
+      font-family: 'Barlow', sans-serif;
+      font-size: 13px;
+      cursor: pointer;
+      outline: none;
+      transition: border-color .15s;
+    }
+    select:hover:not(:disabled) { border-color: var(--accent); }
+    select:disabled { opacity: .35; cursor: not-allowed; }
+    /* ── TOOLBAR ── */
+    .toolbar {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      flex-wrap: wrap;
+      margin-bottom: 14px;
+    }
+    /* ── STATUS ── */
+    .status {
+      padding: 8px 14px;
+      border-radius: var(--radius);
+      font-size: 13px;
+      margin-top: 10px;
+      display: none;
+      align-items: center;
+      gap: 8px;
+    }
+    .status.ok  { display:flex; background: rgba(46,204,113,.12); color: var(--ok);  border: 1px solid rgba(46,204,113,.3); }
+    .status.err { display:flex; background: rgba(231,76,60,.12);  color: var(--err); border: 1px solid rgba(231,76,60,.3); }
+    .status.load{ display:flex; background: rgba(245,166,35,.08); color: var(--accent); border: 1px solid rgba(245,166,35,.2); }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .spinner {
+      display: inline-block; width: 14px; height: 14px; flex-shrink: 0;
+      border: 2px solid rgba(245,166,35,.25); border-top-color: var(--accent);
+      border-radius: 50%; animation: spin .75s linear infinite;
+    }
+    /* ── RATING TABLE ── */
+    .tbl-wrap { overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; }
+    th {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: .85rem;
+      letter-spacing: 1.5px;
+      color: var(--accent);
+      text-align: left;
+      padding: 9px 12px;
+      border-bottom: 2px solid var(--border);
+    }
+    td { padding: 7px 12px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+    tr:last-child td { border-bottom: none; }
+    tbody tr:hover td { background: rgba(255,255,255,.025); }
+    .col-rank { color: var(--accent); font-weight: 600; width: 52px; }
+    .col-pts { color: var(--muted); }
+    .badge-local {
+      font-size: 9px; letter-spacing: 1px; text-transform: uppercase;
+      color: var(--muted); border: 1px solid var(--border);
+      border-radius: 3px; padding: 1px 4px; margin-left: 6px; vertical-align: middle;
+    }
+    /* ── GROUPS ── */
+    .groups-row { display: flex; gap: 16px; flex-wrap: wrap; }
+    .group-card {
+      flex: 1; min-width: 190px;
+      border-radius: var(--radius);
+      overflow: hidden;
+      border: 1px solid var(--border);
+    }
+    .group-hdr {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 1.4rem; letter-spacing: 3px;
+      padding: 10px 16px; color: #000;
+    }
+    .group-row {
+      display: flex; align-items: center; gap: 8px;
+      padding: 7px 14px; border-bottom: 1px solid var(--border);
+      font-size: 14px;
+    }
+    .group-row:last-child { border-bottom: none; }
+    .g-rank { width: 28px; font-weight: 600; color: var(--accent); flex-shrink: 0; }
+    .g-name { flex: 1; }
+    .g-pts { font-size: 12px; color: var(--muted); }
+    /* ── MONEY ── */
+    .carryover-grid { display: flex; gap: 24px; flex-wrap: wrap; margin-bottom: 20px; }
+    .co-item { display: flex; flex-direction: column; gap: 6px; }
+    .co-item label { font-size: 12px; color: var(--muted); }
+    .co-item input { width: 130px; }
+    .money-tbl th { text-align: center; }
+    .money-tbl td { text-align: center; }
+    .money-tbl td:first-child { text-align: left; }
+    .money-tbl tr.total td { font-weight: 600; color: var(--accent); border-top: 2px solid var(--border); }
+    .derived-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; margin-top: 18px; }
+    .d-card {
+      background: var(--surface2); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 14px 16px; text-align: center;
+    }
+    .d-label { font-size: 10px; letter-spacing: 1.5px; text-transform: uppercase; color: var(--muted); margin-bottom: 6px; }
+    .d-val { font-family: 'Bebas Neue', sans-serif; font-size: 2rem; color: var(--accent); line-height: 1; }
+    /* ── PAID LIST ── */
+    .paid-grid { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 18px; }
+    .paid-chip {
+      display: flex; align-items: center; gap: 6px;
+      background: var(--surface2); border: 1px solid var(--border);
+      border-radius: 20px; padding: 4px 12px; font-size: 13px;
+    }
+    .paid-chip .mark {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 1rem; color: var(--accent);
+    }
+    /* ── EMPTY ── */
+    .empty { text-align: center; color: var(--muted); padding: 36px; font-size: 14px; }
+    /* ── RESPONSIVE ── */
+    @media (max-width: 600px) {
+      header { padding: 12px 16px; }
+      .h-title { font-size: 1.9rem; }
+      main { padding: 14px; }
+      .tab { padding: 12px 14px; font-size: .95rem; }
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <svg width="54" height="54" viewBox="0 0 54 54" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+    <circle cx="27" cy="27" r="26" fill="#1a2035" stroke="#f5a623" stroke-width="1.5"/>
+    <circle cx="27" cy="27" r="21" fill="#e8572a"/>
+    <circle cx="27" cy="27" r="16" fill="#1a2035"/>
+    <circle cx="27" cy="27" r="11" fill="#e8572a"/>
+    <circle cx="27" cy="27" r="6.5" fill="#1a2035"/>
+    <circle cx="27" cy="27" r="3.5" fill="#f5a623"/>
+    <!-- dart -->
+    <line x1="27" y1="3.5" x2="27" y2="23.5" stroke="#f5a623" stroke-width="1.5" stroke-linecap="round"/>
+    <polygon points="27,23.5 25,19 29,19" fill="#f5a623"/>
+  </svg>
+  <div class="h-text">
+    <div class="h-title">Darts Klubi</div>
+    <div class="h-sub" id="todayDisplay"></div>
+  </div>
+</header>
+
+<nav>
+  <div class="tab active" data-tab="reiting">⬤ Reiting</div>
+  <div class="tab" data-tab="alagrupid">◈ Alagrupid</div>
+  <div class="tab" data-tab="raha">◎ Raha</div>
+</nav>
+
+<main>
+
+  <!-- ═══════════════ SECTION 1: REITING ═══════════════ -->
+  <section id="reiting" class="section active">
+
+    <div class="card">
+      <div class="card-title">Andmed</div>
+      <div class="toolbar">
+        <button class="btn btn-primary" id="btnFetch">Uuenda tabel</button>
+        <input type="text" id="newName" placeholder="Uue mängija nimi…" style="width:210px">
+        <button class="btn btn-sec" id="btnAdd">Lisa mängija</button>
+      </div>
+      <div class="status" id="fetchStatus"></div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Mängijad</div>
+      <div class="toolbar">
+        <input type="text" id="search" placeholder="Otsi nime…" style="width:240px">
+        <span id="countInfo" style="color:var(--muted);font-size:13px;margin-left:4px"></span>
+      </div>
+      <div class="tbl-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Koht</th>
+              <th>Nimi</th>
+              <th>Punktid</th>
+              <th>Osaleja</th>
+              <th>Maksis</th>
+            </tr>
+          </thead>
+          <tbody id="reitingBody"></tbody>
+        </table>
+      </div>
+    </div>
+
+  </section>
+
+  <!-- ═══════════════ SECTION 2: ALAGRUPID ═══════════════ -->
+  <section id="alagrupid" class="section">
+    <div class="card">
+      <div class="card-title">Grupijaotus</div>
+      <div id="groupMeta" style="color:var(--muted);font-size:13px;margin-bottom:16px"></div>
+      <div id="groupsRow" class="groups-row"></div>
+    </div>
+  </section>
+
+  <!-- ═══════════════ SECTION 3: RAHA ═══════════════ -->
+  <section id="raha" class="section">
+
+    <div class="card">
+      <div class="card-title">Ülekandmine</div>
+      <div class="carryover-grid">
+        <div class="co-item">
+          <label>Jackpot eelmiselt korral (€)</label>
+          <input type="number" id="jackpotPrev" min="0" step="1">
+        </div>
+        <div class="co-item">
+          <label>Pox eelmiselt korral (€)</label>
+          <input type="number" id="poxPrev" min="0" step="1">
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Kassaarvestus</div>
+      <div class="tbl-wrap">
+        <table class="money-tbl">
+          <thead>
+            <tr>
+              <th style="text-align:left">Periood</th>
+              <th>Osalus</th>
+              <th>Jackpot</th>
+              <th>Pox</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Eelmine nädal</td>
+              <td>—</td>
+              <td id="mPrevJackpot">0€</td>
+              <td id="mPrevPox">0€</td>
+            </tr>
+            <tr>
+              <td>Käesolev nädal</td>
+              <td id="mWeekOsalus">0€</td>
+              <td id="mWeekJackpot">0€</td>
+              <td id="mWeekPox">0€</td>
+            </tr>
+            <tr class="total">
+              <td>Kokku</td>
+              <td id="mTotalOsalus">0€</td>
+              <td id="mTotalJackpot">0€</td>
+              <td id="mTotalPox">0€</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="derived-grid">
+        <div class="d-card">
+          <div class="d-label">Auhinnaks</div>
+          <div class="d-val" id="dAuhinnaks">0€</div>
+        </div>
+        <div class="d-card">
+          <div class="d-label">Digital Steel</div>
+          <div class="d-val" id="dDigital">0€</div>
+        </div>
+        <div class="d-card">
+          <div class="d-label">Jackpot fond</div>
+          <div class="d-val" id="dJackpot">0€</div>
+        </div>
+        <div class="d-card">
+          <div class="d-label">Pox järgmisele</div>
+          <div class="d-val" id="dPoxNext">0€</div>
+        </div>
+      </div>
+
+      <div id="paidChips" class="paid-grid"></div>
+    </div>
+
+  </section>
+
+</main>
+
+<script>
+'use strict';
+
+// ── PAYMENT SPLIT ──────────────────────────────────────────────
+const MARKS = {
+  10: { osalus: 7, jackpot: 2, pox: 1 },
+   9: { osalus: 7, jackpot: 2, pox: 0 },
+   8: { osalus: 7, jackpot: 0, pox: 1 },
+   7: { osalus: 7, jackpot: 0, pox: 0 },
+};
+
+// ── LOCALSTORAGE ───────────────────────────────────────────────
+const LS = {
+  getR:  ()  => JSON.parse(localStorage.getItem('darts_reiting') || '[]'),
+  setR:  (v) => localStorage.setItem('darts_reiting', JSON.stringify(v)),
+  getS:  ()  => JSON.parse(localStorage.getItem('darts_sessioon') || '{"osalejad":{},"maksnud":{},"kuupaev":""}'),
+  setS:  (v) => localStorage.setItem('darts_sessioon', JSON.stringify(v)),
+  getPox: ()  => parseFloat(localStorage.getItem('darts_pox_prev') || '0'),
+  setPox: (v) => localStorage.setItem('darts_pox_prev', String(v)),
+  getJP: ()   => parseFloat(localStorage.getItem('darts_jackpot_prev') || '0'),
+  setJP: (v)  => localStorage.setItem('darts_jackpot_prev', String(v)),
+};
+
+// ── HELPERS ────────────────────────────────────────────────────
+function todayStr() {
+  const d = new Date();
+  const dd = String(d.getDate()).padStart(2,'0');
+  const mm = String(d.getMonth()+1).padStart(2,'0');
+  return `${dd}.${mm}.${d.getFullYear()}`;
+}
+
+function esc(s) {
+  return String(s)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function fmtEur(v) {
+  return (Math.round(v * 100) / 100).toFixed(2).replace('.00','') + '€';
+}
+
+// ── SORT & DENSE RANK ──────────────────────────────────────────
+function ranked(players) {
+  const s = [...players].sort((a, b) =>
+    b.Punktid !== a.Punktid ? b.Punktid - a.Punktid : a.Nimi.localeCompare(b.Nimi)
+  );
+  let rank = 1;
+  for (let i = 0; i < s.length; i++) {
+    if (i > 0 && s[i].Punktid !== s[i-1].Punktid) rank = i + 1;
+    s[i].Koht = rank;
+  }
+  return s;
+}
+
+// ── SNAKE DRAFT ────────────────────────────────────────────────
+function groupCount(n) {
+  if (n <=  5) return 1;
+  if (n <= 10) return 2;
+  if (n <= 15) return 3;
+  return 4;
+}
+
+function snakeDraft(players) {
+  const G = groupCount(players.length);
+  const groups = Array.from({ length: G }, () => []);
+  players.forEach((p, idx) => {
+    const i   = idx + 1;
+    const row = Math.floor((i - 1) / G);
+    const col = (i - 1) % G;
+    const gn  = (row % 2 === 0) ? col + 1 : G - col;
+    groups[gn - 1].push(p);
+  });
+  return groups;
+}
+
+// ── RENDER: REITING ────────────────────────────────────────────
+function renderReiting() {
+  const players = ranked(LS.getR());
+  const sess    = LS.getS();
+  const q       = document.getElementById('search').value.trim().toLowerCase();
+  const list    = q ? players.filter(p => p.Nimi.toLowerCase().includes(q)) : players;
+
+  const tbody = document.getElementById('reitingBody');
+  tbody.innerHTML = '';
+
+  list.forEach(p => {
+    const checked = !!sess.osalejad[p.Nimi];
+    const mark    = (p.Nimi in sess.maksnud) ? sess.maksnud[p.Nimi] : '—';
+
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td class="col-rank">${p.Koht}</td>
+      <td>${esc(p.Nimi)}${p.local ? '<span class="badge-local">kohalik</span>' : ''}</td>
+      <td class="col-pts">${p.Punktid}</td>
+      <td style="text-align:center">
+        <input type="checkbox" class="chk" data-n="${esc(p.Nimi)}" ${checked ? 'checked' : ''}>
+      </td>
+      <td>
+        <select class="sel" data-n="${esc(p.Nimi)}" ${!checked ? 'disabled' : ''}>
+          <option value="—" ${mark==='—'?'selected':''}>—</option>
+          <option value="7"  ${mark===7||mark==='7' ?'selected':''}>7</option>
+          <option value="8"  ${mark===8||mark==='8' ?'selected':''}>8</option>
+          <option value="9"  ${mark===9||mark==='9' ?'selected':''}>9</option>
+          <option value="10" ${mark===10||mark==='10'?'selected':''}>10</option>
+        </select>
+      </td>`;
+    tbody.appendChild(tr);
+  });
+
+  document.getElementById('countInfo').textContent =
+    q ? `${list.length} / ${players.length} mängijat` : `${players.length} mängijat`;
+
+  // events
+  tbody.querySelectorAll('.chk').forEach(chk => {
+    chk.addEventListener('change', e => {
+      const n = e.target.dataset.n;
+      const s = LS.getS();
+      if (e.target.checked) {
+        s.osalejad[n] = true;
+      } else {
+        delete s.osalejad[n];
+        delete s.maksnud[n];
+      }
+      LS.setS(s);
+      renderReiting();
+      renderRaha();
+    });
+  });
+
+  tbody.querySelectorAll('.sel').forEach(sel => {
+    sel.addEventListener('change', e => {
+      const n = e.target.dataset.n;
+      const v = e.target.value;
+      const s = LS.getS();
+      if (v === '—') delete s.maksnud[n];
+      else s.maksnud[n] = parseInt(v, 10);
+      LS.setS(s);
+      renderRaha();
+    });
+  });
+}
+
+// ── RENDER: ALAGRUPID ──────────────────────────────────────────
+function renderAlagrupid() {
+  const players = ranked(LS.getR());
+  const sess    = LS.getS();
+
+  const paid = players.filter(p => sess.osalejad[p.Nimi] && (p.Nimi in sess.maksnud));
+
+  const meta = document.getElementById('groupMeta');
+  const row  = document.getElementById('groupsRow');
+
+  if (!paid.length) {
+    meta.textContent = '';
+    row.innerHTML = '<div class="empty">Maksnud osalejaid pole veel registreeritud.</div>';
+    return;
+  }
+
+  const G       = groupCount(paid.length);
+  const groups  = snakeDraft(paid);
+  const letters = ['A','B','C','D'];
+  const colors  = ['var(--accent)', 'var(--accent-b)', 'var(--accent-c)', 'var(--accent-d)'];
+
+  meta.textContent = `${paid.length} mängijat · ${G} grupp${G>1?'i':''} · serpentiin-jaotus`;
+  row.innerHTML = '';
+
+  groups.forEach((grp, gi) => {
+    if (!grp.length) return;
+    const card = document.createElement('div');
+    card.className = 'group-card';
+    card.innerHTML = `<div class="group-hdr" style="background:${colors[gi]}">Grupp ${letters[gi]}</div>`;
+    grp.forEach(p => {
+      const r = document.createElement('div');
+      r.className = 'group-row';
+      r.innerHTML = `
+        <span class="g-rank">${p.Koht}</span>
+        <span class="g-name">${esc(p.Nimi)}</span>
+        <span class="g-pts">${p.Punktid}p</span>`;
+      card.appendChild(r);
+    });
+    row.appendChild(card);
+  });
+}
+
+// ── RENDER: RAHA ───────────────────────────────────────────────
+function renderRaha() {
+  const sess    = LS.getS();
+  const prevJP  = LS.getJP();
+  const prevPox = LS.getPox();
+
+  let wOsalus = 0, wJP = 0, wPox = 0;
+  const chips = [];
+
+  Object.entries(sess.maksnud).forEach(([name, mark]) => {
+    if (!sess.osalejad[name]) return;
+    const m = MARKS[mark];
+    if (!m) return;
+    wOsalus += m.osalus;
+    wJP     += m.jackpot;
+    wPox    += m.pox;
+    chips.push({ name, mark });
+  });
+
+  const totOsalus = wOsalus;
+  const totJP     = prevJP + wJP;
+  const totPox    = prevPox + wPox;
+
+  document.getElementById('mPrevJackpot').textContent = fmtEur(prevJP);
+  document.getElementById('mPrevPox').textContent     = fmtEur(prevPox);
+  document.getElementById('mWeekOsalus').textContent  = fmtEur(wOsalus);
+  document.getElementById('mWeekJackpot').textContent = fmtEur(wJP);
+  document.getElementById('mWeekPox').textContent     = fmtEur(wPox);
+  document.getElementById('mTotalOsalus').textContent = fmtEur(totOsalus);
+  document.getElementById('mTotalJackpot').textContent= fmtEur(totJP);
+  document.getElementById('mTotalPox').textContent    = fmtEur(totPox);
+
+  document.getElementById('dAuhinnaks').textContent  = fmtEur(0.6 * totOsalus);
+  document.getElementById('dDigital').textContent    = fmtEur(0.8 * totPox);
+  document.getElementById('dJackpot').textContent    = fmtEur(totJP);
+  document.getElementById('dPoxNext').textContent    = fmtEur(0.2 * totPox);
+
+  const cp = document.getElementById('paidChips');
+  if (chips.length) {
+    cp.innerHTML = chips.sort((a,b) => a.name.localeCompare(b.name))
+      .map(c => `<div class="paid-chip">${esc(c.name)}<span class="mark">${c.mark}€</span></div>`)
+      .join('');
+  } else {
+    cp.innerHTML = '';
+  }
+}
+
+// ── FETCH darts.ee ─────────────────────────────────────────────
+async function fetchDartsEE() {
+  const btn = document.getElementById('btnFetch');
+  const st  = document.getElementById('fetchStatus');
+
+  function setStatus(cls, html) {
+    st.className = 'status ' + cls;
+    st.innerHTML = html;
+  }
+
+  btn.disabled = true;
+  setStatus('load', '<span class="spinner"></span>Laen andmeid darts.ee-lt…');
+
+  try {
+    const date    = todayStr();
+    const target  = 'https://darts.ee/ranking_ajax.php?start_date=' + date;
+    const proxy   = 'https://api.allorigins.win/raw?url=' + encodeURIComponent(target);
+    const res     = await fetch(proxy, { cache: 'no-store' });
+
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+
+    const data = await res.json();
+    if (!data || !Array.isArray(data.data)) throw new Error('Ootamatu vastuse formaat');
+
+    const fetched = data.data
+      .filter(row => row[0])
+      .map(row => ({ Nimi: String(row[0]).trim(), Punktid: parseInt(row[1], 10) || 0 }));
+
+    // merge: local players survive; remote players updated
+    const existing   = LS.getR();
+    const localMap   = {};
+    existing.filter(p => p.local).forEach(p => { localMap[p.Nimi] = p; });
+
+    const merged = [
+      ...fetched.filter(p => !localMap[p.Nimi]),
+      ...Object.values(localMap),
+    ];
+
+    LS.setR(merged);
+    renderReiting();
+    renderAlagrupid();
+
+    setStatus('ok', `✓ Laaditud ${fetched.length} mängijat (${date})`);
+  } catch (err) {
+    setStatus('err', '✗ Viga: ' + esc(err.message));
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+// ── ADD LOCAL PLAYER ───────────────────────────────────────────
+function addLocal() {
+  const input = document.getElementById('newName');
+  const name  = input.value.trim();
+  if (!name) return;
+
+  const players = LS.getR();
+  if (players.some(p => p.Nimi === name)) {
+    document.getElementById('fetchStatus').className = 'status err';
+    document.getElementById('fetchStatus').textContent = `✗ Mängija "${name}" on juba nimekirjas.`;
+    return;
+  }
+
+  players.push({ Nimi: name, Punktid: 0, local: true });
+  LS.setR(players);
+  input.value = '';
+  renderReiting();
+
+  document.getElementById('fetchStatus').className = 'status ok';
+  document.getElementById('fetchStatus').textContent = `✓ Lisatud: ${name}`;
+}
+
+// ── INIT ───────────────────────────────────────────────────────
+function init() {
+  document.getElementById('todayDisplay').textContent = todayStr();
+
+  // carryover inputs: pre-fill from storage
+  document.getElementById('jackpotPrev').value = LS.getJP();
+  document.getElementById('poxPrev').value     = LS.getPox();
+
+  // tab switching
+  document.querySelectorAll('.tab').forEach(tab => {
+    tab.addEventListener('click', () => {
+      document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+      document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+      tab.classList.add('active');
+      const sec = document.getElementById(tab.dataset.tab);
+      sec.classList.add('active');
+      if (tab.dataset.tab === 'alagrupid') renderAlagrupid();
+      if (tab.dataset.tab === 'raha') renderRaha();
+    });
+  });
+
+  // fetch
+  document.getElementById('btnFetch').addEventListener('click', fetchDartsEE);
+
+  // add local
+  document.getElementById('btnAdd').addEventListener('click', addLocal);
+  document.getElementById('newName').addEventListener('keydown', e => {
+    if (e.key === 'Enter') addLocal();
+  });
+
+  // search
+  document.getElementById('search').addEventListener('input', renderReiting);
+
+  // carryover changes
+  document.getElementById('jackpotPrev').addEventListener('input', e => {
+    LS.setJP(parseFloat(e.target.value) || 0);
+    renderRaha();
+  });
+  document.getElementById('poxPrev').addEventListener('input', e => {
+    LS.setPox(parseFloat(e.target.value) || 0);
+    renderRaha();
+  });
+
+  // initial renders
+  renderReiting();
+  renderRaha();
+}
+
+document.addEventListener('DOMContentLoaded', init);
+</script>
+
+</body>
+</html>
