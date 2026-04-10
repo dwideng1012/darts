@@ -480,14 +480,21 @@ function autoGroupCount(n) {
 }
 
 function snakeDraft(players, G) {
-  const groups = Array.from({ length: G }, () => []);
+  const n          = players.length;
+  const remainder  = n % G;
+  const fullRings  = Math.floor(n / G);
+  const groups     = Array.from({ length: G }, () => []);
+
   players.forEach((p, idx) => {
-    const i   = idx + 1;
-    const row = Math.floor((i - 1) / G);
-    const col = (i - 1) % G;
-    const gn  = (row % 2 === 0) ? col + 1 : G - col;
+    const i          = idx + 1;
+    const row        = Math.floor((i - 1) / G);
+    const col        = (i - 1) % G;
+    const isPartial  = remainder > 0 && row === fullRings;
+    // Partial last row always goes forward (A direction); full rows snake.
+    const gn         = isPartial || row % 2 === 0 ? col + 1 : G - col;
     groups[gn - 1].push(p);
   });
+
   return groups;
 }
 
