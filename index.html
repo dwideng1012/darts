@@ -674,14 +674,28 @@ async function fetchDartsEE() {
     st.innerHTML = html;
   }
 
-  // Try fetching from a URL and parsing the darts.ee JSON response.
-  // Throws on network error, non-OK status, or bad format.
-  async function tryFetch(url) {
-    const res = await fetch(url, { cache: 'no-store' });
-    if (!res.ok) throw new Error('HTTP ' + res.status);
-    const data = await res.json();
+  // Parse darts.ee JSON from raw text (text() preserves UTF-8; .json() can mangle Estonian chars).
+  function parseDartsText(text) {
+    const data = JSON.parse(text);
     if (!data || !Array.isArray(data.data)) throw new Error('Ootamatu vastuse formaat');
     return data;
+  }
+
+  // Fetch URL, read as text, parse as darts.ee JSON.
+  async function tryFetch(url, opts = {}) {
+    const res = await fetch(url, { cache: 'no-store', ...opts });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    return parseDartsText(await res.text());
+  }
+
+  // allorigins /get wraps the body in { contents: "…" } — parse the inner string separately.
+  async function tryAlloriginsGet(target) {
+    const proxy = 'https://api.allorigins.win/get?url=' + encodeURIComponent(target);
+    const res   = await fetch(proxy, { cache: 'no-store' });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const wrapper = JSON.parse(await res.text());
+    if (!wrapper || !wrapper.contents) throw new Error('Ootamatu allorigins vastus');
+    return parseDartsText(wrapper.contents);
   }
 
   btn.disabled = true;
@@ -693,18 +707,22 @@ async function fetchDartsEE() {
 
     let data;
 
-    // 1. Try direct fetch
+    // 1. Direct fetch
     try {
       data = await tryFetch(target);
     } catch (_) {
-      // 2. Fall back to corsproxy.io
+      // 2. corsproxy.io with explicit UTF-8 accept header
       setStatus('load', '<span class="spinner"></span>Proxy kaudu…');
       try {
         const proxy = 'https://corsproxy.io/?url=' + encodeURIComponent(target);
-        data = await tryFetch(proxy);
+        data = await tryFetch(proxy, { headers: { 'Accept-Charset': 'utf-8' } });
       } catch (_2) {
-        // 3. Both failed
-        throw new Error('Reitingutabeli laadimine ebaõnnestus.');
+        // 3. allorigins /get (wraps body in { contents: "…" })
+        try {
+          data = await tryAlloriginsGet(target);
+        } catch (_3) {
+          throw new Error('Reitingutabeli laadimine ebaõnnestus.');
+        }
       }
     }
 
