@@ -312,6 +312,7 @@
         <table>
           <thead>
             <tr>
+              <th>#</th>
               <th>Koht</th>
               <th>Nimi</th>
               <th>Punktid</th>
@@ -522,15 +523,22 @@ function renderReiting() {
   let list      = q ? players.filter(p => p.Nimi.toLowerCase().includes(q)) : players;
   if (showOnlyPaid) list = list.filter(p => p.Nimi in sess.maksnud);
 
+  // Pre-compute paid sequence numbers from the full ranked list (independent of filter).
+  let paidSeq = 0;
+  const seqMap = {};
+  players.forEach(p => { if (p.Nimi in sess.maksnud) seqMap[p.Nimi] = ++paidSeq; });
+
   const tbody = document.getElementById('reitingBody');
   tbody.innerHTML = '';
 
   list.forEach(p => {
     const checked = !!sess.osalejad[p.Nimi];
     const mark    = (p.Nimi in sess.maksnud) ? sess.maksnud[p.Nimi] : '—';
+    const seq     = seqMap[p.Nimi] ?? '';
 
     const tr = document.createElement('tr');
     tr.innerHTML = `
+      <td style="color:var(--muted);font-size:12px;width:32px">${seq}</td>
       <td class="col-rank">${p.Koht}</td>
       <td>${esc(p.Nimi)}${p.local ? '<span class="badge-local">kohalik</span>' : ''}</td>
       <td class="col-pts">${p.Punktid}</td>
@@ -666,10 +674,12 @@ function renderRaha() {
   document.getElementById('mTotalPox').textContent    = fmtEur(totPox);
   document.getElementById('mTotalKokku').textContent  = fmtEur(totOsalus + totJP + totPox);
 
-  const auhinnaks = 0.6 * totOsalus;
+  const auhinnaks  = 0.6 * totOsalus;
+  const digital    = 0.8 * totPox;
+  const klubiKassa = totOsalus - auhinnaks - digital;
   document.getElementById('dAuhinnaks').textContent  = fmtEur(auhinnaks);
-  document.getElementById('dDigital').textContent    = fmtEur(0.8 * totPox);
-  document.getElementById('dJackpot').textContent    = fmtEur(totJP);
+  document.getElementById('dDigital').textContent    = fmtEur(digital);
+  document.getElementById('dJackpot').textContent    = fmtEur(klubiKassa);
 
   // Prize table: 50% / 30% / 20% of auhinnaks, rounded to whole euros
   const prizes = [
@@ -721,7 +731,7 @@ async function fetchDartsEE() {
     return data;
   }
 
-  // codetabs re-serves the response as UTF-8 — let the browser decode normally.
+  // codetabs returns UTF-8 — use response.text(), NO TextDecoder (would corrupt š/ž).
   async function tryFetchUtf8(url) {
     const res = await fetch(url, { cache: 'no-store' });
     if (!res.ok) throw new Error('HTTP ' + res.status);
