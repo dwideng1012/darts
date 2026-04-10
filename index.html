@@ -786,14 +786,18 @@ async function fetchDartsEE() {
       .filter(row => row[0])
       .map(row => ({ Nimi: String(row[0]).trim().replace(/\?/g, 'š'), Punktid: parseInt(row[1], 10) || 0 }));
 
-    // merge: local players survive; remote players updated
+    // Normalize a name for comparison: trim, ?→š, lowercase.
+    const normName = n => String(n).trim().replace(/\?/g, 'š').toLowerCase();
+
+    // merge: if a local player now appears in darts.ee, promote them (drop local flag,
+    // use fetched Punktid). Only keep locals whose name doesn't match anything fetched.
     const existing = LS.getR();
-    const localMap = {};
-    existing.filter(p => p.local).forEach(p => { localMap[p.Nimi] = p; });
+    const fetchedNorms = new Set(fetched.map(p => normName(p.Nimi)));
+    const survivingLocals = existing.filter(p => p.local && !fetchedNorms.has(normName(p.Nimi)));
 
     const merged = [
-      ...fetched.filter(p => !localMap[p.Nimi]),
-      ...Object.values(localMap),
+      ...fetched,         // all remote players (promoted locals now included here)
+      ...survivingLocals, // only locals not found in fetched list
     ];
 
     LS.setR(merged);
