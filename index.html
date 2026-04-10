@@ -710,20 +710,26 @@ async function fetchDartsEE() {
     st.innerHTML = html;
   }
 
-  // darts.ee sends Windows-1252 (not UTF-8). Decode the raw bytes correctly.
-  function parseDartsBuffer(buf) {
-    const text = new TextDecoder('windows-1252').decode(buf);
-    console.log('first 500 chars:', text.slice(0, 500));
+  // darts.ee itself sends Windows-1252 — decode raw bytes.
+  async function tryFetchWin1252(url) {
+    const res = await fetch(url, { cache: 'no-store' });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const text = new TextDecoder('windows-1252').decode(await res.arrayBuffer());
+    console.log('first 500 chars (win-1252):', text.slice(0, 500));
     const data = JSON.parse(text);
     if (!data || !Array.isArray(data.data)) throw new Error('Ootamatu vastuse formaat');
     return data;
   }
 
-  // Fetch URL, read as ArrayBuffer, decode as windows-1252, parse as darts.ee JSON.
-  async function tryFetch(url) {
+  // codetabs re-serves the response as UTF-8 — let the browser decode normally.
+  async function tryFetchUtf8(url) {
     const res = await fetch(url, { cache: 'no-store' });
     if (!res.ok) throw new Error('HTTP ' + res.status);
-    return parseDartsBuffer(await res.arrayBuffer());
+    const text = await res.text();
+    console.log('first 500 chars (utf-8):', text.slice(0, 500));
+    const data = JSON.parse(text);
+    if (!data || !Array.isArray(data.data)) throw new Error('Ootamatu vastuse formaat');
+    return data;
   }
 
   btn.disabled = true;
@@ -735,23 +741,23 @@ async function fetchDartsEE() {
 
     let data;
 
-    // 1. Direct fetch
+    // 1. Direct fetch (windows-1252)
     console.log('trying direct fetch...');
     try {
-      data = await tryFetch(target);
+      data = await tryFetchWin1252(target);
     } catch (e1) {
       console.log('direct failed:', e1.message);
       setStatus('load', '<span class="spinner"></span>Proxy kaudu…');
-      // 2. codetabs — does not re-encode, windows-1252 decode works
+      // 2. codetabs — returns UTF-8, use text()
       console.log('trying codetabs...');
       try {
-        data = await tryFetch('https://api.codetabs.com/v1/proxy?quest=' + encodeURIComponent(target));
+        data = await tryFetchUtf8('https://api.codetabs.com/v1/proxy?quest=' + encodeURIComponent(target));
       } catch (e2) {
         console.log('codetabs failed:', e2.message);
-        // 3. corsproxy.io fallback
+        // 3. corsproxy.io — behaviour unknown, try windows-1252 first
         console.log('trying corsproxy...');
         try {
-          data = await tryFetch('https://corsproxy.io/?url=' + encodeURIComponent(target));
+          data = await tryFetchWin1252('https://corsproxy.io/?url=' + encodeURIComponent(target));
         } catch (e3) {
           console.log('all proxies failed:', e3.message);
           throw new Error('Reitingutabeli laadimine ebaõnnestus.');
