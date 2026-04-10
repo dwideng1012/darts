@@ -666,8 +666,9 @@ function renderRaha() {
   let wOsalus = 0, wJP = 0, wPox = 0;
   const chips = [];
 
-  // Money depends only on Maksis (7/8/9/10). Osaleja is irrelevant here.
+  // Both conditions required: Osaleja=true AND Maksis 7/8/9/10.
   Object.entries(sess.maksnud).forEach(([name, mark]) => {
+    if (!sess.osalejad[name]) return;  // must be checked as participant
     const m = MARKS[mark];
     if (!m) return; // skip "—" or any stale/invalid value
     wOsalus += m.osalus;
@@ -796,8 +797,17 @@ async function fetchDartsEE() {
     ];
 
     LS.setR(merged);
+
+    // Purge session entries for players no longer in the ratings list.
+    const validNames = new Set(merged.map(p => p.Nimi));
+    const sess = LS.getS();
+    Object.keys(sess.osalejad).forEach(n => { if (!validNames.has(n)) delete sess.osalejad[n]; });
+    Object.keys(sess.maksnud).forEach(n  => { if (!validNames.has(n)) delete sess.maksnud[n]; });
+    LS.setS(sess);
+
     renderReiting();
     renderAlagrupid();
+    renderRaha();
 
     setStatus('ok', `✓ Laaditud ${fetched.length} mängijat (${date})`);
   } catch (err) {
