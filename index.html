@@ -641,27 +641,47 @@ async function fetchDartsEE() {
     st.innerHTML = html;
   }
 
+  // Try fetching from a URL and parsing the darts.ee JSON response.
+  // Throws on network error, non-OK status, or bad format.
+  async function tryFetch(url) {
+    const res = await fetch(url, { cache: 'no-store' });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const data = await res.json();
+    if (!data || !Array.isArray(data.data)) throw new Error('Ootamatu vastuse formaat');
+    return data;
+  }
+
   btn.disabled = true;
   setStatus('load', '<span class="spinner"></span>Laen andmeid darts.ee-lt…');
 
   try {
-    const date    = todayStr();
-    const target  = 'https://darts.ee/ranking_ajax.php?start_date=' + date;
-    const proxy   = 'https://api.allorigins.win/raw?url=' + encodeURIComponent(target);
-    const res     = await fetch(proxy, { cache: 'no-store' });
+    const date   = todayStr();
+    const target = 'https://darts.ee/ranking_ajax.php?start_date=' + date;
 
-    if (!res.ok) throw new Error('HTTP ' + res.status);
+    let data;
 
-    const data = await res.json();
-    if (!data || !Array.isArray(data.data)) throw new Error('Ootamatu vastuse formaat');
+    // 1. Try direct fetch
+    try {
+      data = await tryFetch(target);
+    } catch (_) {
+      // 2. Fall back to corsproxy.io
+      setStatus('load', '<span class="spinner"></span>Proxy kaudu…');
+      try {
+        const proxy = 'https://corsproxy.io/?url=' + encodeURIComponent(target);
+        data = await tryFetch(proxy);
+      } catch (_2) {
+        // 3. Both failed
+        throw new Error('Reitingutabeli laadimine ebaõnnestus.');
+      }
+    }
 
     const fetched = data.data
       .filter(row => row[0])
       .map(row => ({ Nimi: String(row[0]).trim(), Punktid: parseInt(row[1], 10) || 0 }));
 
     // merge: local players survive; remote players updated
-    const existing   = LS.getR();
-    const localMap   = {};
+    const existing = LS.getR();
+    const localMap = {};
     existing.filter(p => p.local).forEach(p => { localMap[p.Nimi] = p; });
 
     const merged = [
@@ -675,7 +695,7 @@ async function fetchDartsEE() {
 
     setStatus('ok', `✓ Laaditud ${fetched.length} mängijat (${date})`);
   } catch (err) {
-    setStatus('err', '✗ Viga: ' + esc(err.message));
+    setStatus('err', '✗ ' + esc(err.message));
   } finally {
     btn.disabled = false;
   }
