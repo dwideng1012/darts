@@ -744,11 +744,11 @@ async function fetchDartsEE() {
     try {
       data = await tryFetch(target);
     } catch (_) {
-      // 2. corsproxy.io with explicit UTF-8 accept header
+      // 2. thingproxy — passes response bytes through unchanged, so windows-1252 decode works
       setStatus('load', '<span class="spinner"></span>Proxy kaudu…');
       try {
-        const proxy = 'https://corsproxy.io/?url=' + encodeURIComponent(target);
-        data = await tryFetch(proxy, { headers: { 'Accept-Charset': 'utf-8' } });
+        const proxy = 'https://thingproxy.freeboard.io/fetch/' + target;
+        data = await tryFetch(proxy);
       } catch (_2) {
         // 3. allorigins /get (wraps body in { contents: "…" })
         try {
