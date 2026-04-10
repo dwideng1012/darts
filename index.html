@@ -713,6 +713,7 @@ async function fetchDartsEE() {
   // darts.ee sends Windows-1252 (not UTF-8). Decode the raw bytes correctly.
   function parseDartsBuffer(buf) {
     const text = new TextDecoder('windows-1252').decode(buf);
+    console.log('first 500 chars:', text.slice(0, 500));
     const data = JSON.parse(text);
     if (!data || !Array.isArray(data.data)) throw new Error('Ootamatu vastuse formaat');
     return data;
@@ -739,13 +740,13 @@ async function fetchDartsEE() {
       data = await tryFetch(target);
     } catch (_) {
       setStatus('load', '<span class="spinner"></span>Proxy kaudu…');
-      // 2. corsproxy.io
+      // 2. codetabs — does not re-encode, windows-1252 decode works
       try {
-        data = await tryFetch('https://corsproxy.io/?url=' + encodeURIComponent(target));
+        data = await tryFetch('https://api.codetabs.com/v1/proxy?quest=' + encodeURIComponent(target));
       } catch (_2) {
-        // 3. codetabs proxy
+        // 3. corsproxy.io fallback
         try {
-          data = await tryFetch('https://api.codetabs.com/v1/proxy?quest=' + encodeURIComponent(target));
+          data = await tryFetch('https://corsproxy.io/?url=' + encodeURIComponent(target));
         } catch (_3) {
           throw new Error('Reitingutabeli laadimine ebaõnnestus.');
         }
