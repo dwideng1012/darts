@@ -226,6 +226,7 @@
     }
     .d-label { font-size: 10px; letter-spacing: 1.5px; text-transform: uppercase; color: var(--muted); margin-bottom: 6px; }
     .d-val { font-family: 'Oswald', sans-serif; font-size: 2rem; color: var(--accent); line-height: 1; }
+    .d-formula { font-size: 11px; color: var(--muted); margin-top: 5px; line-height: 1.4; }
     /* ── PRIZE TABLE ── */
     .prize-table { width: 100%; border-collapse: collapse; margin-top: 0; }
     .prize-table td { padding: 9px 14px; border-bottom: 1px solid var(--border); font-size: 15px; }
@@ -415,6 +416,7 @@
         <div class="d-card">
           <div class="d-label">Digital Steel</div>
           <div class="d-val" id="dDigital">0€</div>
+          <div class="d-formula" id="dDigitalFormula"></div>
         </div>
         <div class="d-card">
           <div class="d-label">Klubi kassa</div>
@@ -514,6 +516,18 @@ function snakeDraft(players, G) {
 
 // ── UI STATE ───────────────────────────────────────────────────
 let showOnlyPaid = false;
+let usdEurRate   = 0.90; // fallback; updated on init from frankfurter.app
+
+async function fetchUsdRate() {
+  try {
+    const res  = await fetch('https://api.frankfurter.app/latest?from=USD&to=EUR');
+    const data = await res.json();
+    if (data && data.rates && data.rates.EUR) {
+      usdEurRate = data.rates.EUR;
+      renderRaha();
+    }
+  } catch (_) { /* keep fallback */ }
+}
 
 // ── RENDER: REITING ────────────────────────────────────────────
 function renderReiting() {
@@ -674,11 +688,16 @@ function renderRaha() {
   document.getElementById('mTotalPox').textContent    = fmtEur(totPox);
   document.getElementById('mTotalKokku').textContent  = fmtEur(totOsalus + totJP + totPox);
 
+  const paidCount  = chips.length;
   const auhinnaks  = 0.6 * totOsalus;
-  const digital    = 0.8 * totPox;
+  const digital    = paidCount * usdEurRate;
   const klubiKassa = totOsalus - auhinnaks - digital;
   document.getElementById('dAuhinnaks').textContent  = fmtEur(auhinnaks);
   document.getElementById('dDigital').textContent    = fmtEur(digital);
+  document.getElementById('dDigitalFormula').textContent =
+    paidCount > 0
+      ? `${paidCount} mängijat × 1 USD × ${usdEurRate.toFixed(2)} = ${fmtEur(digital)}`
+      : '';
   document.getElementById('dJackpot').textContent    = fmtEur(klubiKassa);
 
   // Prize table: 50% / 30% / 20% of auhinnaks, rounded to whole euros
@@ -720,23 +739,12 @@ async function fetchDartsEE() {
     st.innerHTML = html;
   }
 
-  // darts.ee itself sends Windows-1252 — decode raw bytes.
-  async function tryFetchWin1252(url) {
-    const res = await fetch(url, { cache: 'no-store' });
-    if (!res.ok) throw new Error('HTTP ' + res.status);
-    const text = new TextDecoder('windows-1252').decode(await res.arrayBuffer());
-    console.log('first 500 chars (win-1252):', text.slice(0, 500));
-    const data = JSON.parse(text);
-    if (!data || !Array.isArray(data.data)) throw new Error('Ootamatu vastuse formaat');
-    return data;
-  }
-
-  // codetabs returns UTF-8 — use response.text(), NO TextDecoder (would corrupt š/ž).
-  async function tryFetchUtf8(url) {
+  // All proxies return UTF-8 text — use response.text() everywhere, no TextDecoder.
+  async function tryFetch(url) {
     const res = await fetch(url, { cache: 'no-store' });
     if (!res.ok) throw new Error('HTTP ' + res.status);
     const text = await res.text();
-    console.log('first 500 chars (utf-8):', text.slice(0, 500));
+    console.log('first 500 chars:', text.slice(0, 500));
     const data = JSON.parse(text);
     if (!data || !Array.isArray(data.data)) throw new Error('Ootamatu vastuse formaat');
     return data;
@@ -751,23 +759,23 @@ async function fetchDartsEE() {
 
     let data;
 
-    // 1. Direct fetch (windows-1252)
+    // 1. Direct fetch
     console.log('trying direct fetch...');
     try {
-      data = await tryFetchWin1252(target);
+      data = await tryFetch(target);
     } catch (e1) {
       console.log('direct failed:', e1.message);
       setStatus('load', '<span class="spinner"></span>Proxy kaudu…');
-      // 2. codetabs — returns UTF-8, use text()
+      // 2. codetabs
       console.log('trying codetabs...');
       try {
-        data = await tryFetchUtf8('https://api.codetabs.com/v1/proxy?quest=' + encodeURIComponent(target));
+        data = await tryFetch('https://api.codetabs.com/v1/proxy?quest=' + encodeURIComponent(target));
       } catch (e2) {
         console.log('codetabs failed:', e2.message);
-        // 3. corsproxy.io — behaviour unknown, try windows-1252 first
+        // 3. corsproxy.io
         console.log('trying corsproxy...');
         try {
-          data = await tryFetchWin1252('https://corsproxy.io/?url=' + encodeURIComponent(target));
+          data = await tryFetch('https://corsproxy.io/?url=' + encodeURIComponent(target));
         } catch (e3) {
           console.log('all proxies failed:', e3.message);
           throw new Error('Reitingutabeli laadimine ebaõnnestus.');
@@ -879,6 +887,9 @@ function init() {
   // initial renders
   renderReiting();
   renderRaha();
+
+  // fetch live USD/EUR rate (updates Digital Steel after response arrives)
+  fetchUsdRate();
 }
 
 document.addEventListener('DOMContentLoaded', init);
