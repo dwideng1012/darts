@@ -736,18 +736,24 @@ async function fetchDartsEE() {
     let data;
 
     // 1. Direct fetch
+    console.log('trying direct fetch...');
     try {
       data = await tryFetch(target);
-    } catch (_) {
+    } catch (e1) {
+      console.log('direct failed:', e1.message);
       setStatus('load', '<span class="spinner"></span>Proxy kaudu…');
       // 2. codetabs — does not re-encode, windows-1252 decode works
+      console.log('trying codetabs...');
       try {
         data = await tryFetch('https://api.codetabs.com/v1/proxy?quest=' + encodeURIComponent(target));
-      } catch (_2) {
+      } catch (e2) {
+        console.log('codetabs failed:', e2.message);
         // 3. corsproxy.io fallback
+        console.log('trying corsproxy...');
         try {
           data = await tryFetch('https://corsproxy.io/?url=' + encodeURIComponent(target));
-        } catch (_3) {
+        } catch (e3) {
+          console.log('all proxies failed:', e3.message);
           throw new Error('Reitingutabeli laadimine ebaõnnestus.');
         }
       }
