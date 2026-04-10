@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Darts Klubi</title>
+  <title>Lihula Nool</title>
   <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Barlow:wght@400;500;600&display=swap" rel="stylesheet">
   <style>
     :root {
@@ -239,6 +239,21 @@
     }
     /* ── EMPTY ── */
     .empty { text-align: center; color: var(--muted); padding: 36px; font-size: 14px; }
+    /* ── TOGGLE BUTTON ── */
+    .btn-toggle {
+      background: var(--surface2);
+      color: var(--muted);
+      border: 1px solid var(--border);
+    }
+    .btn-toggle:hover { border-color: var(--accent); color: var(--accent); }
+    .btn-toggle.on { background: rgba(245,166,35,.15); color: var(--accent); border-color: var(--accent); }
+    /* ── HEADER LOGO ── */
+    .h-logo {
+      height: 54px; width: auto;
+      border-radius: 6px;
+      object-fit: contain;
+      flex-shrink: 0;
+    }
     /* ── RESPONSIVE ── */
     @media (max-width: 600px) {
       header { padding: 12px 16px; }
@@ -251,19 +266,9 @@
 <body>
 
 <header>
-  <svg width="54" height="54" viewBox="0 0 54 54" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-    <circle cx="27" cy="27" r="26" fill="#1a2035" stroke="#f5a623" stroke-width="1.5"/>
-    <circle cx="27" cy="27" r="21" fill="#e8572a"/>
-    <circle cx="27" cy="27" r="16" fill="#1a2035"/>
-    <circle cx="27" cy="27" r="11" fill="#e8572a"/>
-    <circle cx="27" cy="27" r="6.5" fill="#1a2035"/>
-    <circle cx="27" cy="27" r="3.5" fill="#f5a623"/>
-    <!-- dart -->
-    <line x1="27" y1="3.5" x2="27" y2="23.5" stroke="#f5a623" stroke-width="1.5" stroke-linecap="round"/>
-    <polygon points="27,23.5 25,19 29,19" fill="#f5a623"/>
-  </svg>
+  <img class="h-logo" src="https://darts.ee/userfiles/Image/lihula_logo.jpg" alt="Lihula Nool logo">
   <div class="h-text">
-    <div class="h-title">Darts Klubi</div>
+    <div class="h-title">Lihula Nool</div>
     <div class="h-sub" id="todayDisplay"></div>
   </div>
 </header>
@@ -293,6 +298,7 @@
       <div class="card-title">Mängijad</div>
       <div class="toolbar">
         <input type="text" id="search" placeholder="Otsi nime…" style="width:240px">
+        <button class="btn btn-toggle" id="btnOnlyPaid">Näita ainult maksnud</button>
         <span id="countInfo" style="color:var(--muted);font-size:13px;margin-left:4px"></span>
       </div>
       <div class="tbl-wrap">
@@ -317,6 +323,21 @@
   <section id="alagrupid" class="section">
     <div class="card">
       <div class="card-title">Grupijaotus</div>
+      <div class="toolbar" style="margin-bottom:16px">
+        <label style="color:var(--muted);font-size:13px">Gruppide arv:</label>
+        <select id="groupCountSel">
+          <option value="auto">Automaatne</option>
+          <option value="2">2</option>
+          <option value="3">3</option>
+          <option value="4">4</option>
+          <option value="5">5</option>
+          <option value="6">6</option>
+          <option value="7">7</option>
+          <option value="8">8</option>
+          <option value="9">9</option>
+          <option value="10">10</option>
+        </select>
+      </div>
       <div id="groupMeta" style="color:var(--muted);font-size:13px;margin-bottom:16px"></div>
       <div id="groupsRow" class="groups-row"></div>
     </div>
@@ -387,10 +408,6 @@
           <div class="d-label">Jackpot fond</div>
           <div class="d-val" id="dJackpot">0€</div>
         </div>
-        <div class="d-card">
-          <div class="d-label">Pox järgmisele</div>
-          <div class="d-val" id="dPoxNext">0€</div>
-        </div>
       </div>
 
       <div id="paidChips" class="paid-grid"></div>
@@ -455,15 +472,14 @@ function ranked(players) {
 }
 
 // ── SNAKE DRAFT ────────────────────────────────────────────────
-function groupCount(n) {
+function autoGroupCount(n) {
   if (n <=  5) return 1;
   if (n <= 10) return 2;
   if (n <= 15) return 3;
   return 4;
 }
 
-function snakeDraft(players) {
-  const G = groupCount(players.length);
+function snakeDraft(players, G) {
   const groups = Array.from({ length: G }, () => []);
   players.forEach((p, idx) => {
     const i   = idx + 1;
@@ -475,12 +491,16 @@ function snakeDraft(players) {
   return groups;
 }
 
+// ── UI STATE ───────────────────────────────────────────────────
+let showOnlyPaid = false;
+
 // ── RENDER: REITING ────────────────────────────────────────────
 function renderReiting() {
   const players = ranked(LS.getR());
   const sess    = LS.getS();
   const q       = document.getElementById('search').value.trim().toLowerCase();
-  const list    = q ? players.filter(p => p.Nimi.toLowerCase().includes(q)) : players;
+  let list      = q ? players.filter(p => p.Nimi.toLowerCase().includes(q)) : players;
+  if (showOnlyPaid) list = list.filter(p => p.Nimi in sess.maksnud);
 
   const tbody = document.getElementById('reitingBody');
   tbody.innerHTML = '';
@@ -551,6 +571,7 @@ function renderAlagrupid() {
 
   const meta = document.getElementById('groupMeta');
   const row  = document.getElementById('groupsRow');
+  const sel  = document.getElementById('groupCountSel');
 
   if (!paid.length) {
     meta.textContent = '';
@@ -558,10 +579,16 @@ function renderAlagrupid() {
     return;
   }
 
-  const G       = groupCount(paid.length);
-  const groups  = snakeDraft(paid);
-  const letters = ['A','B','C','D'];
-  const colors  = ['var(--accent)', 'var(--accent-b)', 'var(--accent-c)', 'var(--accent-d)'];
+  const autoG  = autoGroupCount(paid.length);
+  const selVal = sel ? sel.value : 'auto';
+  const G      = (selVal === 'auto') ? autoG : Math.max(1, parseInt(selVal, 10));
+
+  const groups  = snakeDraft(paid, G);
+  const letters = ['A','B','C','D','E','F','G','H','I','J'];
+  const colors  = [
+    '#f5a623','#e8572a','#00b4d8','#2ecc71',
+    '#9b59b6','#e91e63','#1abc9c','#f39c12','#3498db','#e74c3c',
+  ];
 
   meta.textContent = `${paid.length} mängijat · ${G} grupp${G>1?'i':''} · serpentiin-jaotus`;
   row.innerHTML = '';
@@ -570,7 +597,7 @@ function renderAlagrupid() {
     if (!grp.length) return;
     const card = document.createElement('div');
     card.className = 'group-card';
-    card.innerHTML = `<div class="group-hdr" style="background:${colors[gi]}">Grupp ${letters[gi]}</div>`;
+    card.innerHTML = `<div class="group-hdr" style="background:${colors[gi] || '#888'}">Grupp ${letters[gi] || gi+1}</div>`;
     grp.forEach(p => {
       const r = document.createElement('div');
       r.className = 'group-row';
@@ -619,7 +646,6 @@ function renderRaha() {
   document.getElementById('dAuhinnaks').textContent  = fmtEur(0.6 * totOsalus);
   document.getElementById('dDigital').textContent    = fmtEur(0.8 * totPox);
   document.getElementById('dJackpot').textContent    = fmtEur(totJP);
-  document.getElementById('dPoxNext').textContent    = fmtEur(0.2 * totPox);
 
   const cp = document.getElementById('paidChips');
   if (chips.length) {
@@ -755,6 +781,16 @@ function init() {
 
   // search
   document.getElementById('search').addEventListener('input', renderReiting);
+
+  // ainult maksnud toggle
+  document.getElementById('btnOnlyPaid').addEventListener('click', e => {
+    showOnlyPaid = !showOnlyPaid;
+    e.currentTarget.classList.toggle('on', showOnlyPaid);
+    renderReiting();
+  });
+
+  // group count selector
+  document.getElementById('groupCountSel').addEventListener('change', renderAlagrupid);
 
   // carryover changes
   document.getElementById('jackpotPrev').addEventListener('input', e => {
