@@ -719,23 +719,10 @@ async function fetchDartsEE() {
   }
 
   // Fetch URL, read as ArrayBuffer, decode as windows-1252, parse as darts.ee JSON.
-  async function tryFetch(url, opts = {}) {
-    const res = await fetch(url, { cache: 'no-store', ...opts });
+  async function tryFetch(url) {
+    const res = await fetch(url, { cache: 'no-store' });
     if (!res.ok) throw new Error('HTTP ' + res.status);
     return parseDartsBuffer(await res.arrayBuffer());
-  }
-
-  // allorigins /get wraps the body in { contents: "…" }. The contents string is already
-  // decoded by allorigins — parse it directly as JSON text.
-  async function tryAlloriginsGet(target) {
-    const proxy = 'https://api.allorigins.win/get?url=' + encodeURIComponent(target);
-    const res   = await fetch(proxy, { cache: 'no-store' });
-    if (!res.ok) throw new Error('HTTP ' + res.status);
-    const wrapper = JSON.parse(new TextDecoder('windows-1252').decode(await res.arrayBuffer()));
-    if (!wrapper || !wrapper.contents) throw new Error('Ootamatu allorigins vastus');
-    const data = JSON.parse(wrapper.contents);
-    if (!data || !Array.isArray(data.data)) throw new Error('Ootamatu vastuse formaat');
-    return data;
   }
 
   btn.disabled = true;
@@ -751,15 +738,14 @@ async function fetchDartsEE() {
     try {
       data = await tryFetch(target);
     } catch (_) {
-      // 2. thingproxy — passes response bytes through unchanged, so windows-1252 decode works
       setStatus('load', '<span class="spinner"></span>Proxy kaudu…');
+      // 2. corsproxy.io
       try {
-        const proxy = 'https://thingproxy.freeboard.io/fetch/' + target;
-        data = await tryFetch(proxy);
+        data = await tryFetch('https://corsproxy.io/?url=' + encodeURIComponent(target));
       } catch (_2) {
-        // 3. allorigins /get (wraps body in { contents: "…" })
+        // 3. codetabs proxy
         try {
-          data = await tryAlloriginsGet(target);
+          data = await tryFetch('https://api.codetabs.com/v1/proxy?quest=' + encodeURIComponent(target));
         } catch (_3) {
           throw new Error('Reitingutabeli laadimine ebaõnnestus.');
         }
