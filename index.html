@@ -484,6 +484,8 @@ const LS = {
   setJP: (v)  => localStorage.setItem('darts_jackpot_prev', String(v)),
   getAuhPct: () => parseInt(localStorage.getItem('darts_auhinnafond_protsent') || '60', 10),
   setAuhPct: (v) => localStorage.setItem('darts_auhinnafond_protsent', String(v)),
+  getUpdated: () => localStorage.getItem('darts_reiting_updated') || null,
+  setUpdated: (v) => localStorage.setItem('darts_reiting_updated', v),
 };
 
 // ── HELPERS ────────────────────────────────────────────────────
@@ -492,6 +494,16 @@ function todayStr() {
   const dd = String(d.getDate()).padStart(2,'0');
   const mm = String(d.getMonth()+1).padStart(2,'0');
   return `${dd}.${mm}.${d.getFullYear()}`;
+}
+
+function fmtUpdated(isoStr) {
+  if (!isoStr) return null;
+  const d = new Date(isoStr);
+  const dd = String(d.getDate()).padStart(2,'0');
+  const mm = String(d.getMonth()+1).padStart(2,'0');
+  const HH = String(d.getHours()).padStart(2,'0');
+  const MM = String(d.getMinutes()).padStart(2,'0');
+  return `${dd}.${mm}.${d.getFullYear()} ${HH}:${MM}`;
 }
 
 function esc(s) {
@@ -786,7 +798,7 @@ function renderRaha() {
   }
 }
 
-// ── FETCH darts.ee ─────────────────────────────────────────────
+// ── FETCH ranking from same origin ─────────────────────────────
 async function fetchDartsEE() {
   const btn = document.getElementById('btnFetch');
   const st  = document.getElementById('fetchStatus');
@@ -796,65 +808,34 @@ async function fetchDartsEE() {
     st.innerHTML = html;
   }
 
-  // All proxies return UTF-8 text — use response.text() everywhere, no TextDecoder.
-  async function tryFetch(url) {
-    const res = await fetch(url, { cache: 'no-store' });
-    if (!res.ok) throw new Error('HTTP ' + res.status);
-    const text = await res.text();
-    const data = JSON.parse(text);
-    if (!data || !Array.isArray(data.data)) throw new Error('Ootamatu vastuse formaat');
-    return data;
-  }
-
   btn.disabled = true;
-  setStatus('load', '<span class="spinner"></span>Laen andmeid darts.ee-lt…');
+  setStatus('load', '<span class="spinner"></span>Laen andmeid…');
 
   try {
-    const date   = todayStr();
-    const target = 'https://darts.ee/ranking_ajax.php?start_date=' + date;
+    const res = await fetch('data/ranking.json?t=' + Date.now(), { cache: 'no-store' });
+    if (res.status === 404) throw new Error('Reitinguandmed pole veel saadaval. Proovi mõne tunni pärast.');
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const payload = await res.json();
+    if (!payload || !Array.isArray(payload.data)) throw new Error('Ootamatu vastuse formaat');
 
-    let data;
-
-    // 1. Direct fetch
-    try {
-      data = await tryFetch(target);
-    } catch (e1) {
-      setStatus('load', '<span class="spinner"></span>Proxy kaudu…');
-      // 2. codetabs
-      try {
-        data = await tryFetch('https://api.codetabs.com/v1/proxy?quest=' + encodeURIComponent(target));
-      } catch (e2) {
-        // 3. corsproxy.io
-        try {
-          data = await tryFetch('https://corsproxy.io/?url=' + encodeURIComponent(target));
-        } catch (e3) {
-          throw new Error('Reitingutabeli laadimine ebaõnnestus.');
-        }
-      }
-    }
-
-    const fetched = data.data
+    const fetched = payload.data
       .filter(row => row[0])
       .map(row => ({ Nimi: String(row[0]).trim().replace(/\?/g, 'š'), Punktid: parseInt(row[1], 10) || 0 }));
 
-    // Normalize a name for comparison: trim, ?→š, lowercase.
     const normName = n => String(n).trim().replace(/\?/g, 'š').toLowerCase();
 
-    // merge: if a local player now appears in darts.ee, promote them (drop local flag,
-    // use fetched Punktid). Only keep locals whose name doesn't match anything fetched.
     const existing = LS.getR();
     const fetchedNorms = new Set(fetched.map(p => normName(p.Nimi)));
     const survivingLocals = existing.filter(p => p.local && !fetchedNorms.has(normName(p.Nimi)));
 
     const merged = [
-      ...fetched,         // all remote players (promoted locals now included here)
-      ...survivingLocals, // only locals not found in fetched list
+      ...fetched,
+      ...survivingLocals,
     ];
 
     LS.setR(merged);
+    if (payload.updated) LS.setUpdated(payload.updated);
 
-    // Normalize session keys: old entries may have "?" where we now store "š".
-    // Rename any such keys before the purge so they match the current names.
     const sess = LS.getS();
     function normalizeKeys(obj) {
       Object.keys(obj).forEach(k => {
@@ -865,7 +846,6 @@ async function fetchDartsEE() {
     normalizeKeys(sess.osalejad);
     normalizeKeys(sess.maksnud);
 
-    // Purge session entries for players no longer in the ratings list.
     const validNames = new Set(merged.map(p => p.Nimi));
     Object.keys(sess.osalejad).forEach(n => { if (!validNames.has(n)) delete sess.osalejad[n]; });
     Object.keys(sess.maksnud).forEach(n  => { if (!validNames.has(n)) delete sess.maksnud[n]; });
@@ -875,7 +855,8 @@ async function fetchDartsEE() {
     renderAlagrupid();
     renderRaha();
 
-    setStatus('ok', `✓ Laaditud ${fetched.length} mängijat (${date})`);
+    const updStr = payload.updated ? fmtUpdated(payload.updated) : todayStr();
+    setStatus('ok', `✓ Laaditud ${fetched.length} mängijat · andmed uuendatud ${updStr}`);
   } catch (err) {
     setStatus('err', '✗ ' + esc(err.message));
   } finally {
@@ -908,6 +889,13 @@ function addLocal() {
 // ── INIT ───────────────────────────────────────────────────────
 function init() {
   document.getElementById('todayDisplay').textContent = todayStr();
+
+  const storedUpdated = LS.getUpdated();
+  if (storedUpdated) {
+    const st = document.getElementById('fetchStatus');
+    st.className = 'status ok';
+    st.textContent = `✓ Andmed uuendatud: ${fmtUpdated(storedUpdated)}`;
+  }
 
   // carryover inputs: pre-fill from storage
   document.getElementById('jackpotPrev').value = LS.getJP();
